@@ -1,9 +1,21 @@
 <p align="center"><img src="static/icon.png" width="104" alt="PhotoDesk icon"></p>
 <h1 align="center">PhotoDesk</h1>
-<p align="center">One scan. Many photographs. Every story kept together.</p>
+<p align="center">One scan. Many photographs. Every story kept together.<br>Bir taramada çok fotoğraf. Her fotoğrafın hikâyesi bir arada.</p>
 <p align="center"><strong>English</strong> · <a href="README.tr.md">Türkçe</a></p>
 
+## English
+
 PhotoDesk is a local macOS app for turning sheets of scanned photographs into individual archives. Separate multiple prints, straighten skewed edges, match handwritten backs, and export each photo as a high-quality JPEG. Start without AI, or choose a Codex model or OpenRouter API model when you want visual interpretation and natural-language revisions.
+
+## Türkçe
+
+**PhotoDesk**, tek taramadaki birden fazla fotoğrafı ayıran, eğik kenarlarını düzelten ve yazılı arka yüzlerini fotoğraflarla birleştiren bir **macOS uygulamasıdır**. Boş arkaları çıktıya eklemez; her fotoğrafı yüksek kaliteli JPEG olarak kaydeder. Köşeleri, yönü, eşleşmeleri ve dosya adlarını kaydetmeden önce düzenleyebilirsin.
+
+**Yapay zekâsız ve çevrimdışı** kullanılabilir. Görsel yorumlama ve doğal dille düzeltme için isteğe bağlı **Codex** veya **OpenRouter API** desteği bulunur. Arayüz İngilizce açılır; üst çubuktan **Türkçe** seçebilirsin. Orijinal taramalar korunur, yalnız onayladığın sonuçlar yeni klasöre kaydedilir.
+
+Başlamak için depoyu indirip `python3 install_macos.py` çalıştır, ardından **PhotoDesk** uygulamasını aç ve taramalarını sürükleyip bırak. macOS ve Python 3.11+ gerekir.
+
+**[Türkçe kurulum, kullanım ve veri saklama rehberi →](README.tr.md)**
 
 ![PhotoDesk reviewing a synthetic sample archive](docs/screenshot.png)
 *Illustrated test prints, not personal photographs.*
