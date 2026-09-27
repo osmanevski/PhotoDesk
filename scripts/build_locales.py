@@ -5,6 +5,7 @@ inserted only at runtime and are never passed through this build step.
 """
 from pathlib import Path
 import argparse
+import hashlib
 import json
 import re
 
@@ -15,6 +16,10 @@ def build(check=False):
     pattern = re.compile('|'.join(re.escape(k) for k in sorted(catalog, key=len, reverse=True)))
     for name in ('app.js', 'index.html'):
         source = (ROOT / 'locales/tr' / name).read_text()
+        if name == 'index.html':
+            for asset in ('icon.svg','favicon.png'):
+                digest=hashlib.sha256((ROOT/'static'/asset).read_bytes()).hexdigest()[:12]
+                source=source.replace('/static/'+asset,'/static/'+asset+'?v='+digest)
         english = pattern.sub(lambda m: catalog[m.group()], source)
         if name == 'index.html': english = english.replace('lang="tr"', 'lang="en"')
         for target, content in [(ROOT/'static'/name, english), (ROOT/'static'/name.replace('.', '.tr.', 1), source)]:

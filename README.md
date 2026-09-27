@@ -81,9 +81,9 @@ Tests use synthetic images and mocked model calls; they do not require a paid AP
 UI logic and Turkish copy are maintained in `locales/tr/`; `locales/en.json` contains the English catalog. The build translates source literals, never user data in the live DOM. Rebuild generated assets after changing either source:
 
 ```sh
+python scripts/build_icon.py
 python scripts/build_locales.py
 python scripts/build_locales.py --check
-python scripts/build_icon.py
 ```
 
 `static/icon.svg` is the vector mark; `build_icon.py` renders matching PNG and ICNS assets. `locales/server.en.json` covers application status/errors. AI output follows the language selected when the job starts; older notes are not retroactively translated.

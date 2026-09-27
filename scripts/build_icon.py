@@ -13,5 +13,6 @@ def build():
         d.rectangle(tuple(v*scale for v in box),fill='#fafafa')
     im=im.resize((1024,1024),Image.Resampling.LANCZOS)
     im.save(root/'icon.png');im.save(root/'AppIcon.icns')
+    im.resize((32,32),Image.Resampling.LANCZOS).save(root/'favicon.png')
 
 if __name__=='__main__':build()
