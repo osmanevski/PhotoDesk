@@ -1,10 +1,4 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="PhotoDesk">
-  <rect x="64" y="64" width="896" height="896" rx="196" fill="#244f68"/>
-  <rect x="206" y="198" width="454" height="554" rx="24" fill="#9dc3d4"/>
-  <path d="M262 264h132m-132 46h210" fill="none" stroke="#244f68" stroke-width="18" stroke-linecap="round"/>
-  <rect x="334" y="326" width="484" height="504" rx="24" fill="#f8f5ec"/>
-  <path d="M378 370h396v324H378z" fill="#9dc3d4"/>
-  <circle cx="670" cy="452" r="38" fill="#f8f5ec"/>
-  <path d="m378 694 124-180 88 110 64-76 120 146z" fill="#244f68"/>
-  <path d="M174 406v-72h72M778 230h72v72" fill="none" stroke="#eeb965" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="64" y="64" width="896" height="896" rx="196" fill="#222629"/>
+  <path d="M352 224v448h448M224 352h448v448" fill="none" stroke="#fafafa" stroke-width="64"/>
 </svg>
