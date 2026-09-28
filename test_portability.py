@@ -8,6 +8,7 @@ import json
 import os
 import re
 import socket
+import signal
 import subprocess
 import sys
 import tempfile
@@ -184,6 +185,29 @@ class ProcessTests(unittest.TestCase):
 
 
 class ServerTests(unittest.TestCase):
+    def test_launcher_starts_server_and_second_launch_reuses_it(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)/TEXT
+            root.mkdir()
+            with socket.socket() as sock:
+                sock.bind(('127.0.0.1',0))
+                port = sock.getsockname()[1]
+            command = [sys.executable, str(ROOT/'launcher.py'), '--no-open', '--port', str(port), '--data', str(root)]
+            pid = None
+            try:
+                first = subprocess.run(command, capture_output=True, timeout=45)
+                self.assertEqual(first.returncode, 0, first.stderr)
+                pid = int((root/'server.pid').read_text(encoding='utf-8'))
+                self.assertTrue(health(f'http://127.0.0.1:{port}', root))
+                second = subprocess.run(command, capture_output=True, timeout=15)
+                self.assertEqual(second.returncode, 0, second.stderr)
+                self.assertEqual(int((root/'server.pid').read_text(encoding='utf-8')), pid)
+            finally:
+                if pid is not None:
+                    try:os.kill(pid, signal.SIGTERM)
+                    except ProcessLookupError:pass
+                    with platform.instance_lock(root/'server.lock', timeout=10):pass
+
     def test_server_lock_launcher_health_and_proxy_bypass(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)/TEXT
