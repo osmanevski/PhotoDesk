@@ -8,7 +8,8 @@
 <link rel="icon" type="image/svg+xml" href="/static/icon.svg?v={{v:icon.svg}}">
 <link rel="stylesheet" href="/static/style.css?v={{v:style.css}}">
 <script type="application/json" id="strings">{{strings}}</script>
-<script nonce="{{token}}">window.APP_TOKEN='{{token}}';window.APP_LANGUAGE='{{lang}}';</script>
+<script nonce="{{token}}">window.APP_TOKEN='{{token}}';window.APP_LANGUAGE='{{lang}}';
+try{var theme=localStorage.getItem('fm-theme');if(theme==='light'||theme==='dark')document.documentElement.dataset.theme=theme;}catch(e){}</script>
 <script src="/static/app.js?v={{v:app.js}}" defer></script>
 </head>
 <body>
@@ -16,6 +17,7 @@
   <a class="brand" href="/"><img src="/static/icon.svg?v={{v:icon.svg}}" alt=""><span>PhotoDesk</span></a>
   <div class="batch-switch" id="batchSwitch"></div>
   <div class="top-status" id="modelState"></div>
+  <button id="themeToggle" class="theme-btn" type="button"></button>
   <select id="languageSelect" class="lang" aria-label="Language / Dil"><option value="en">EN</option><option value="tr">TR</option></select>
   <button id="exportTop" class="btn primary" disabled>{{t:export.open}}</button>
 </header>

@@ -753,6 +753,27 @@ $('#newForm').addEventListener('submit', e => { e.preventDefault(); act(async ()
   await refresh();
 }); });
 
+/* theme: follows the system unless the person picks light or dark */
+const THEMES = ['auto', 'light', 'dark'];
+const THEME_ICONS = {
+  auto: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2a6 6 0 0 1 0 12z" fill="currentColor"/></svg>',
+  light: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>',
+  dark: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 10.2A6 6 0 0 1 5.8 2.5a6 6 0 1 0 7.7 7.7z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
+};
+function applyTheme(theme) {
+  if (theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  const btn = $('#themeToggle'), label = {auto: t('theme.auto'), light: t('theme.light'), dark: t('theme.dark')}[theme];
+  btn.innerHTML = THEME_ICONS[theme];
+  btn.title = label; btn.setAttribute('aria-label', label);
+}
+applyTheme(THEMES.includes(store.get('fm-theme')) ? store.get('fm-theme') : 'auto');
+$('#themeToggle').addEventListener('click', () => {
+  const current = document.documentElement.dataset.theme || 'auto';
+  const next = THEMES[(THEMES.indexOf(current) + 1) % THEMES.length];
+  store.set('fm-theme', next); applyTheme(next);
+});
+
 $('#languageSelect').value = LANG;
 $('#languageSelect').addEventListener('change', e => act(async () => {
   if (!await settleDraft()) { e.target.value = LANG; return; }
