@@ -87,7 +87,8 @@ def open_folder(path):
         tool = 'open' if sys.platform == 'darwin' else 'xdg-open'
         if not shutil.which(tool):
             raise RuntimeError('Klasör açılamadı. Dosya yöneticisini kur veya çıktı yolunu elle aç.')
-        subprocess.run([tool, path], check=True, timeout=15, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen([tool, path], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
 
 
 def open_browser(url):
@@ -151,10 +152,13 @@ def stop_process_tree(proc, timeout=5):
         if proc.poll() is not None:
             return
         tool = Path(os.environ.get('SystemRoot', r'C:\Windows')) / 'System32/taskkill.exe'
-        subprocess.run([str(tool), '/PID', str(proc.pid), '/T', '/F'],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                       timeout=15, check=False, creationflags=subprocess.CREATE_NO_WINDOW)
-        proc.wait(timeout=timeout)
+        try:
+            subprocess.run([str(tool), '/PID', str(proc.pid), '/T', '/F'],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=15, check=False, creationflags=subprocess.CREATE_NO_WINDOW)
+            proc.wait(timeout=timeout)
+        except (OSError, subprocess.TimeoutExpired):
+            raise RuntimeError('Codex process could not be stopped. End it in Task Manager before retrying.') from None
     else:
         try:
             os.killpg(proc.pid, signal.SIGTERM)

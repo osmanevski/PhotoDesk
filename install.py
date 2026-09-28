@@ -6,6 +6,14 @@ import sys
 from platform_support import runtime_python
 
 
+def ensure_runtime(python):
+    ready = python.is_file() and subprocess.run([str(python), '-m', 'pip', '--version'],
+                                                capture_output=True, timeout=30).returncode == 0
+    if not ready:
+        # venv repairs an existing partial environment without deleting user data.
+        subprocess.run([sys._base_executable, '-m', 'venv', str(python.parent.parent)], check=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--wheels', help='Install offline from this wheel directory')
@@ -22,8 +30,8 @@ def main():
     python = runtime_python()
     if args.skip_deps and not python.is_file():
         raise SystemExit('No existing runtime. Run without --skip-deps first.')
-    if not python.is_file():
-        subprocess.run([sys._base_executable, '-m', 'venv', str(python.parent.parent)], check=True)
+    if not args.skip_deps:
+        ensure_runtime(python)
     if not args.skip_deps:
         command = [str(python), '-m', 'pip', 'install', '--disable-pip-version-check', '-r', str(code / 'requirements.txt')]
         if args.wheels:

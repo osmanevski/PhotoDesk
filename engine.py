@@ -1,5 +1,5 @@
 from pathlib import Path
-import copy, json, os, subprocess, time, uuid
+import copy, json, os, subprocess, tempfile, time, uuid
 from platform_support import codex_command, child_options, stop_process_tree
 from concurrent.futures import CancelledError
 from PIL import Image, ImageDraw, ImageFont
@@ -74,27 +74,20 @@ class Astra:
         text=self.skill.read_text(encoding='utf-8')+'\n\n'+prompt
         env=os.environ.copy();env.pop('OPENAI_API_KEY',None)
         env['PATH']=str(Path(command[0]).parent)+os.pathsep+env.get('PATH','')
-        with open(run/'stdout.log','wb') as stdout,open(run/'stderr.log','wb') as stderr:
-            self.proc=subprocess.Popen(cmd,cwd=run,stdin=subprocess.PIPE,stdout=stdout,stderr=stderr,env=env,**child_options())
-            start=time.monotonic();pending=text.encode('utf-8')
-            while True:
-                if cancel.is_set() or time.monotonic()-start>1200:
-                    stop_process_tree(self.proc)
-                    self.proc.communicate()
-                    self.proc=None
-                    if cancel.is_set():raise CancelledError('İşlem iptal edildi; önceki sonuçlar korundu.')
-                    raise RuntimeError('Model yanıtı 20 dakika içinde tamamlanmadı. İşlem durduruldu; yeniden deneyebilirsin.')
-                try:
-                    self.proc.communicate(input=pending,timeout=.5)
-                    break
-                except subprocess.TimeoutExpired:
-                    pending=None
-                except OSError:
-                    stop_process_tree(self.proc)
-                    detail=(run/'stderr.log').read_text(encoding='utf-8',errors='replace')[-1400:]
-                    self.proc=None
-                    raise RuntimeError('Codex could not read the request. '+detail) from None
-            code=self.proc.returncode;self.proc=None
+        # A temporary input file cannot block on an unread pipe. It is removed on close.
+        with tempfile.TemporaryFile() as input_file, open(run/'stdout.log','wb') as stdout, open(run/'stderr.log','wb') as stderr:
+            input_file.write(text.encode('utf-8'));input_file.seek(0)
+            self.proc=subprocess.Popen(cmd,cwd=run,stdin=input_file,stdout=stdout,stderr=stderr,env=env,**child_options())
+            try:
+                start=time.monotonic()
+                while self.proc.poll() is None:
+                    if cancel.is_set() or time.monotonic()-start>1200:
+                        stop_process_tree(self.proc)
+                        if cancel.is_set():raise CancelledError('İşlem iptal edildi; önceki sonuçlar korundu.')
+                        raise RuntimeError('Model yanıtı 20 dakika içinde tamamlanmadı. İşlem durduruldu; yeniden deneyebilirsin.')
+                    time.sleep(.1)
+                code=self.proc.returncode
+            finally:self.proc=None
         if code or not result_path.exists():
             detail=(run/'stderr.log').read_text(errors='replace', encoding='utf-8')[-1400:]
             raise RuntimeError('Seçilen model çağrısı tamamlanamadı. Model değiştirilmedi. Codex oturumunu/kotanı kontrol et.\n'+detail)

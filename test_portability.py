@@ -215,6 +215,44 @@ class ServerTests(unittest.TestCase):
                 finally:
                     platform.stop_process_tree(proc)
 
+class InstallerTests(unittest.TestCase):
+    def test_repair_venv_created_without_pip(self):
+        from install import ensure_runtime
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)/'runtime'
+            subprocess.run([sys._base_executable, '-m', 'venv', '--without-pip', str(root)], check=True)
+            python = root/('Scripts/python.exe' if sys.platform=='win32' else 'bin/python')
+            self.assertNotEqual(subprocess.run([str(python), '-m', 'pip', '--version'], capture_output=True).returncode, 0)
+            ensure_runtime(python)
+            self.assertEqual(subprocess.run([str(python), '-m', 'pip', '--version'], capture_output=True).returncode, 0)
+
+    def test_folder_open_is_detached(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(platform.sys, 'platform', 'linux'), patch('shutil.which', return_value='/usr/bin/xdg-open'), patch('subprocess.Popen') as start:
+            platform.open_folder(temporary)
+            self.assertEqual(start.call_args.args[0], ['xdg-open', str(Path(temporary).resolve())])
+            self.assertTrue(start.call_args.kwargs['start_new_session'])
+
+    def test_cancel_while_child_does_not_read_large_prompt(self):
+        from concurrent.futures import CancelledError
+        from threading import Timer
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            script = root/'blocked.py'
+            script.write_text('import time; time.sleep(60)', encoding='utf-8')
+            skill = root/'skill.md'
+            skill.write_text('test', encoding='utf-8')
+            event = Event()
+            timer = Timer(.2, event.set)
+            timer.start()
+            start = time.monotonic()
+            try:
+                with patch('engine.codex_command', return_value=[sys.executable, str(script)]):
+                    with self.assertRaises(CancelledError):
+                        Astra(root, skill).call('x'*1000000, [], {}, None, event)
+                self.assertLess(time.monotonic()-start, 10)
+            finally:
+                timer.cancel()
+
 
 if __name__ == '__main__':
     unittest.main()
