@@ -18,7 +18,7 @@
   "İşi oluştur": "Create batch",
   "OPENROUTER BAĞLANTISI": "OPENROUTER CONNECTION",
   "API anahtarını bağla.": "Connect your API key.",
-  "Anahtar yalnız bu Mac'in Anahtar Zinciri'nde saklanır. Fotoğrafları analiz ederken OpenRouter ve seçtiğin model sağlayıcısına göndeririz; kullanım OpenRouter hesabından ücretlendirilir.": "Your key is stored only in this Mac’s Keychain. AI analysis sends photos through OpenRouter to your chosen model provider; usage is billed to your OpenRouter account.",
+  "Anahtar yalnız bu bilgisayarın güvenli anahtar kasasında saklanır. Fotoğrafları analiz ederken OpenRouter ve seçtiğin model sağlayıcısına göndeririz; kullanım OpenRouter hesabından ücretlendirilir.": "Your key is stored only in this computer’s secure credential store. AI analysis sends photos through OpenRouter to your chosen model provider; usage is billed to your OpenRouter account.",
   "API anahtarı": "API key",
   "Anahtarı kaydet": "Save key",
   "Bağlantıyı dene": "Test connection",
@@ -42,7 +42,7 @@
   "Henüz anahtar kaydedilmedi.": "No key saved yet.",
   "Yükleniyor…": "Loading…",
   "uyumlu model bulundu.": "compatible models found.",
-  "Anahtar Anahtar Zinciri’ne kaydedildi. Bağlantıyı deneyebilirsin.": "Key saved to Keychain. You can now test the connection.",
+  "Anahtar güvenli kasaya kaydedildi. Bağlantıyı deneyebilirsin.": "Key saved to the secure credential store. You can now test the connection.",
   "Bu uygulamanın kayıtlı anahtarı silindi.": "The saved key for this app was deleted.",
   "FOTOĞRAFLAR VE ARKALARINDAKİ HİKÂYELER": "PHOTOGRAPHS AND THE STORIES ON THEIR BACKS",
   "Bir taramada çok fotoğraf.<br>Arşivde her biri ayrı.": "One scan. Many photographs.<br>Each with a place of its own.",
@@ -165,8 +165,9 @@
   "inceleme bekleyen fotoğraf bu kayda dahil edilmez.": "photos awaiting review will not be exported.",
   "Tam çözünürlükte kaydediliyor…": "Saving at full resolution…",
   "JPEG kaydedildi.": "JPEGs saved.",
-  "Finder'da göster": "Show in Finder",
+  "Klasörü aç": "Open folder",
   "ZIP indir": "Download ZIP",
   "Kaydedildi ✓": "Saved ✓",
-  "Yeniden dene": "Try again"
+  "Yeniden dene": "Try again",
+  "HEIC yalnız macOS": "HEIC on macOS only"
 }

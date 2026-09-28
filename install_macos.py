@@ -22,11 +22,11 @@ def main():
     icon_source=code/'static/AppIcon.icns'
     icon_name='AppIcon-'+hashlib.sha256(icon_source.read_bytes()).hexdigest()[:12]+'.icns'
     info={'CFBundleName':'PhotoDesk','CFBundleDisplayName':'PhotoDesk','CFBundleIdentifier':'com.osmanevski.fotografmasasi',
-          'CFBundleVersion':'4','CFBundleShortVersionString':'1.3.0','CFBundleDevelopmentRegion':'en','CFBundleLocalizations':['en','tr'],'CFBundleExecutable':'FotografMasasi',
+          'CFBundleVersion':'5','CFBundleShortVersionString':'1.4.0','CFBundleDevelopmentRegion':'en','CFBundleLocalizations':['en','tr'],'CFBundleExecutable':'FotografMasasi',
           'CFBundlePackageType':'APPL','CFBundleIconFile':icon_name,'LSUIElement':True,'NSHighResolutionCapable':True}
     with open(contents/'Info.plist','wb') as f:plistlib.dump(info,f)
     launch=contents/'MacOS'/'FotografMasasi'
-    launch.write_text('#!/bin/zsh\nexec '+shlex.quote(str(python))+' '+shlex.quote(str(code/'launcher.py'))+'\n');launch.chmod(0o755)
+    launch.write_text('#!/bin/zsh\nexec '+shlex.quote(str(python))+' '+shlex.quote(str(code/'launcher.py'))+'\n', encoding='utf-8');launch.chmod(0o755)
     shutil.copy2(icon_source,contents/'Resources'/icon_name)
     app.touch()
     register=Path('/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister')

@@ -12,10 +12,10 @@ import re
 ROOT = Path(__file__).resolve().parents[1]
 
 def build(check=False):
-    catalog = json.loads((ROOT / 'locales/en.json').read_text())
+    catalog = json.loads((ROOT / 'locales/en.json').read_text(encoding='utf-8'))
     pattern = re.compile('|'.join(re.escape(k) for k in sorted(catalog, key=len, reverse=True)))
     for name in ('app.js', 'index.html'):
-        source = (ROOT / 'locales/tr' / name).read_text()
+        source = (ROOT / 'locales/tr' / name).read_text(encoding='utf-8')
         if name == 'index.html':
             for asset in ('icon.svg','favicon.png'):
                 digest=hashlib.sha256((ROOT/'static'/asset).read_bytes()).hexdigest()[:12]
@@ -24,8 +24,8 @@ def build(check=False):
         if name == 'index.html': english = english.replace('lang="tr"', 'lang="en"')
         for target, content in [(ROOT/'static'/name, english), (ROOT/'static'/name.replace('.', '.tr.', 1), source)]:
             if check:
-                if not target.exists() or target.read_text() != content: raise SystemExit(f'Stale locale asset: {target.name}')
-            else: target.write_text(content)
+                if not target.exists() or target.read_text(encoding='utf-8') != content: raise SystemExit(f'Stale locale asset: {target.name}')
+            else: target.write_text(content, encoding='utf-8')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(); parser.add_argument('--check', action='store_true')

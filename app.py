@@ -7,24 +7,26 @@ from PIL import Image, ImageDraw
 from engine import Astra, MODEL, EFFORT, validate_plan, validate_groups
 from local_engine import LocalProcessor, LAYOUTS
 from model_config import DEFAULTS, catalog, validate_settings
-from credentials import Keychain
+from credentials import Credentials
+from contextlib import closing
+from platform_support import data_dir, data_id, instance_lock, open_folder
 from openrouter_engine import OpenRouter,read_models,refresh_models,request_json
 from localization import translate,localize_response
-from imaging import SUPPORTED, raster_pages, render_pair, slug, validate_corners
+from imaging import heic_supported, SUPPORTED, raster_pages, render_pair, slug, validate_corners
 
 HERE=Path(__file__).resolve().parent
 def now():return time.strftime('%Y-%m-%dT%H:%M:%S')
 def uid():return uuid.uuid4().hex[:12]
 def atomic(path,value):
-    tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(value,ensure_ascii=False,indent=2));tmp.replace(path)
+    tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(value,ensure_ascii=False,indent=2), encoding='utf-8');tmp.replace(path)
 
 class Store:
-    def __init__(self,root):
+    def __init__(self,root,credentials=None):
         self.root=Path(root).expanduser().resolve();self.root.mkdir(parents=True,exist_ok=True)
         self.file=self.root/'state.json';self.lock=RLock()
-        self.state=json.loads(self.file.read_text()) if self.file.exists() else {'batches':[],'exports':[]}
+        self.state=json.loads(self.file.read_text(encoding='utf-8')) if self.file.exists() else {'batches':[],'exports':[]}
         self.state['settings']={**DEFAULTS,**self.state.get('settings',{})}
-        self.credentials=Keychain()
+        self.credentials=credentials if credentials is not None else Credentials();self.credential_lock=RLock()
         self.job={'status':'idle','message':'Hazır'};self.cancel=Event();self.pool=ThreadPoolExecutor(max_workers=1)
         self.ai=Astra(self.root,HERE/'skills/fotograf-arsivi/SKILL.md')
     def save(self):atomic(self.file,self.state)
@@ -39,9 +41,9 @@ class Store:
         with self.lock:self.job['message']=msg
     def busy(self,bid=None):return self.job['status']=='running' and (bid is None or self.job.get('batch_id')==bid)
 
-def create_app(root):
+def create_app(root, credentials=None):
     app=Flask(__name__,static_folder=str(HERE/'static'));app.config['MAX_CONTENT_LENGTH']=512*1024*1024
-    store=Store(root);token=secrets.token_urlsafe(32);app.store=store
+    store=Store(root, credentials);token=secrets.token_urlsafe(32);app.store=store
     @app.before_request
     def local_only():
         if request.host.split(':')[0] not in ['127.0.0.1','localhost','[::1]']:
@@ -64,14 +66,14 @@ def create_app(root):
     @app.get('/')
     def index():
         lang=language();name='index.tr.html' if lang=='tr' else 'index.html'
-        html=(HERE/'static'/name).read_text().replace('__TOKEN__',token).replace('__LANG__',lang).replace('__SCRIPT__','/static/app.tr.js' if lang=='tr' else '/static/app.js')
+        html=(HERE/'static'/name).read_text(encoding='utf-8').replace('__TOKEN__',token).replace('__LANG__',lang).replace('__SCRIPT__','/static/app.tr.js' if lang=='tr' else '/static/app.js')
         return Response(html,mimetype='text/html')
     @app.get('/api/state')
     def state():
         with store.lock:
             result=copy.deepcopy(store.state)
             for b in result['batches']:b['undo_available']=bool(b.pop('history',[]))
-            return jsonify(**result,job=store.job,model=(store.state['settings']['api_model'] if store.state['settings']['backend']=='openrouter' else store.state['settings']['model']) if store.state['settings']['backend']!='local' else None,effort=(store.state['settings']['api_effort'] if store.state['settings']['backend']=='openrouter' else store.state['settings']['effort']) if store.state['settings']['backend']!='local' else None,export_default=str(Path.home()/'Downloads'/'Fotograf-Masasi'),version='1.3.0',models=catalog(),layouts=LAYOUTS,openrouter=read_models(store.root),api_key_saved=store.state.get('openrouter_key_saved',False))
+            return jsonify(**result,job=store.job,model=(store.state['settings']['api_model'] if store.state['settings']['backend']=='openrouter' else store.state['settings']['model']) if store.state['settings']['backend']!='local' else None,effort=(store.state['settings']['api_effort'] if store.state['settings']['backend']=='openrouter' else store.state['settings']['effort']) if store.state['settings']['backend']!='local' else None,export_default=str(Path.home()/'Downloads'/'Fotograf-Masasi'),version='1.4.0',models=catalog(),layouts=LAYOUTS,openrouter=read_models(store.root),api_key_saved=store.state.get('openrouter_key_saved',False))
     @app.post('/api/settings')
     def settings():
         data=request.get_json() or {}
@@ -84,11 +86,12 @@ def create_app(root):
         data=request.get_json() or {}
         with store.lock:
             if store.busy():raise ValueError('Önce devam eden işlemin bitmesini bekle.')
-            if data.get('delete'):
-                store.credentials.delete();store.state['openrouter_key_saved']=False
-            else:
-                store.credentials.set(data.get('key',''));store.state['openrouter_key_saved']=True
-            store.save()
+        with store.credential_lock:
+            if data.get('delete'):store.credentials.delete()
+            else:store.credentials.set(data.get('key',''))
+            with store.lock:
+                store.state['openrouter_key_saved']=not bool(data.get('delete'))
+                store.save()
         return jsonify(saved=store.state['openrouter_key_saved'])
     @app.post('/api/openrouter/test')
     def router_test():
@@ -122,6 +125,7 @@ def create_app(root):
                 filename=Path(f.filename or 'tarama.jpg').name
                 ext=Path(filename).suffix.lower()
                 if ext not in SUPPORTED:errors.append(filename+': desteklenmeyen biçim');continue
+                if ext in {'.heic','.heif'} and not heic_supported():errors.append(filename+': HEIC yalnız macOS üzerinde destekleniyor. Dosyayı JPEG olarak yükle.');continue
                 raw=f.read()
                 if not raw:errors.append(filename+': boş dosya');continue
                 digest=hashlib.sha256(raw).hexdigest()
@@ -130,17 +134,18 @@ def create_app(root):
                 original=directory/('original'+ext);original.write_bytes(raw)
                 try:
                     records=[]
-                    for page,(im,dpi,method) in enumerate(raster_pages(original),1):
-                        if len(b['scans'])+len(records)>=100:raise ValueError('100 sayfa sınırı aşıldı.')
-                        if im.width*im.height>100_000_000:raise ValueError('Tarama 100 megapiksel sınırını aşıyor.')
-                        sid='s'+uid()[:7];raster=directory/f'{sid}.png';preview=directory/f'{sid}-preview.jpg'
-                        im.save(raster,dpi=(dpi,dpi));p=im.copy();p.thumbnail((2100,2100));p.save(preview,quality=95)
-                        grouping=re.fullmatch(r'(\d+)\s*([ab])',Path(filename).stem.strip(),re.I)
-                        records.append({'id':sid,'name':filename,'page':page,'width':im.width,'height':im.height,'dpi':dpi,
-                            'hash':digest,'method':method,'raster':str(raster.relative_to(store.root)),
-                            'preview':str(preview.relative_to(store.root)),'original':str(original.relative_to(store.root)),
-                            'role_hint':('front' if grouping[2].lower()=='a' else 'back') if grouping else 'auto',
-                            'group_key':str(int(grouping[1])) if grouping else '', 'order':len(b['scans'])+len(records)+1})
+                    with closing(raster_pages(original)) as pages:
+                        for page,(im,dpi,method) in enumerate(pages,1):
+                            if len(b['scans'])+len(records)>=100:raise ValueError('100 sayfa sınırı aşıldı.')
+                            if im.width*im.height>100_000_000:raise ValueError('Tarama 100 megapiksel sınırını aşıyor.')
+                            sid='s'+uid()[:7];raster=directory/f'{sid}.png';preview=directory/f'{sid}-preview.jpg'
+                            im.save(raster,dpi=(dpi,dpi));p=im.copy();p.thumbnail((2100,2100));p.save(preview,quality=95)
+                            grouping=re.fullmatch(r'(\d+)\s*([ab])',Path(filename).stem.strip(),re.I)
+                            records.append({'id':sid,'name':filename,'page':page,'width':im.width,'height':im.height,'dpi':dpi,
+                                'hash':digest,'method':method,'raster':raster.relative_to(store.root).as_posix(),
+                                'preview':preview.relative_to(store.root).as_posix(),'original':original.relative_to(store.root).as_posix(),
+                                'role_hint':('front' if grouping[2].lower()=='a' else 'back') if grouping else 'auto',
+                                'group_key':str(int(grouping[1])) if grouping else '', 'order':len(b['scans'])+len(records)+1})
                     b['scans']+=records;added+=records
                 except Exception as e:
                     errors.append(filename+': '+str(e));shutil.rmtree(directory)
@@ -171,6 +176,12 @@ def create_app(root):
     def analyze(bid):
         data=request.get_json() or {};instruction=str(data.get('instruction',''))[:20000];mode=data.get('mode','analyze')
         with store.lock:
+            key_needed=store.state['settings']['backend']=='openrouter'
+            settings_before=copy.deepcopy(store.state['settings'])
+        with store.credential_lock:
+            api_key=store.credentials.get() if key_needed else None
+        with store.lock:
+            if store.state['settings']!=settings_before:raise ValueError('İş başka bir pencerede değişti. Sayfayı yenile.')
             if store.busy():raise ValueError('Başka bir iş çalışıyor. Bitince bu işi başlatabilirsin.')
             b=store.batch(bid)
             if not b['scans']:raise ValueError('Önce tarama dosyalarını ekle.')
@@ -183,7 +194,7 @@ def create_app(root):
             processor=store.ai
             if config['backend']=='openrouter':
                 if not config['api_model']:raise ValueError('Önce OpenRouter model listesini yenile ve model seç.')
-                processor=OpenRouter(store.root,HERE/'skills/fotograf-arsivi/SKILL.md',store.credentials.get(),config['api_model'],config['api_effort'])
+                processor=OpenRouter(store.root,HERE/'skills/fotograf-arsivi/SKILL.md',api_key,config['api_model'],config['api_effort'])
             store.job={'status':'running','batch_id':bid,'message':('Yerel işlem başlatılıyor' if config['backend']=='local' else processor.model+' · '+processor.effort+' başlatılıyor'),'started':now()}
         def run():
             try:
@@ -261,17 +272,19 @@ def create_app(root):
     @app.post('/api/exports/<eid>/reveal')
     def reveal(eid):
         with store.lock:record=next(e for e in store.state['exports'] if e['id']==eid)
-        subprocess.Popen(['open',record['directory']]);return jsonify(ok=True)
+        open_folder(record['directory']);return jsonify(ok=True)
     @app.get('/api/health')
     def health():
         config=store.state['settings']
-        return jsonify(ok=True,app='fotograf-masasi',version='1.3.0',backend=config['backend'],model=(config['api_model'] if config['backend']=='openrouter' else config['model']) if config['backend']!='local' else None,effort=(config['api_effort'] if config['backend']=='openrouter' else config['effort']) if config['backend']!='local' else None)
+        return jsonify(ok=True,app='fotograf-masasi',data_id=data_id(store.root),version='1.4.0',backend=config['backend'],model=(config['api_model'] if config['backend']=='openrouter' else config['model']) if config['backend']!='local' else None,effort=(config['api_effort'] if config['backend']=='openrouter' else config['effort']) if config['backend']!='local' else None)
     return app
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=8874)
-    parser.add_argument('--data',default=str(Path.home()/'Library'/'Application Support'/'FotografMasasi'))
-    args=parser.parse_args();app=create_app(args.data)
+    parser.add_argument('--data',default=str(data_dir()))
+    args=parser.parse_args()
     from waitress import serve
-    print(f'PhotoDesk · http://127.0.0.1:{args.port}',flush=True)
-    serve(app,host='127.0.0.1',port=args.port,threads=4,max_request_body_size=512*1024*1024)
+    with instance_lock(Path(args.data).expanduser().resolve()/'server.lock', timeout=0):
+        app=create_app(args.data)
+        print(f'PhotoDesk · http://127.0.0.1:{args.port}',flush=True)
+        serve(app,host='127.0.0.1',port=args.port,threads=4,max_request_body_size=512*1024*1024)

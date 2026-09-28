@@ -1,5 +1,6 @@
 from pathlib import Path
-import copy, json, os, shutil, subprocess, time, uuid
+import copy, json, os, subprocess, time, uuid
+from platform_support import codex_command, child_options, stop_process_tree
 from concurrent.futures import CancelledError
 from PIL import Image, ImageDraw, ImageFont
 import jsonschema
@@ -59,46 +60,52 @@ class Astra:
     def __init__(self,root,skill,model=MODEL,effort=EFFORT):
         self.root=Path(root);self.skill=Path(skill);self.proc=None;self.model=model;self.effort=effort
     def call(self,prompt,images,schema,job,cancel):
-        binary=shutil.which('codex') or '/opt/homebrew/bin/codex'
-        if not Path(binary).exists():raise RuntimeError('Codex bulunamadı. Codex CLI kurulu ve hesabına giriş yapılmış olmalı.')
+        command=codex_command()
         run=self.root/'runs'/uuid.uuid4().hex;run.mkdir(parents=True)
         schema_path=run/'schema.json';result_path=run/'result.json'
-        schema_path.write_text(json.dumps(schema))
-        cmd=[binary,'exec','--ignore-user-config','--ephemeral','--skip-git-repo-check','--sandbox','read-only',
+        schema_path.write_text(json.dumps(schema), encoding='utf-8')
+        cmd=command+['exec','--ignore-user-config','--ephemeral','--skip-git-repo-check','--sandbox','read-only',
              '--model',self.model,'-c',f'model_reasoning_effort="{self.effort}"','-c','project_doc_max_bytes=0',
              '-c','web_search="disabled"','--disable','shell_tool','--disable','apps','--disable','multi_agent',
              '--disable','skill_search','--enable','skip_host_skill_discovery','--color','never',
              '--output-schema',str(schema_path),'-o',str(result_path)]
         for image in images:cmd+=['--image',str(image)]
         cmd+=['-']
-        text=self.skill.read_text()+'\n\n'+prompt
+        text=self.skill.read_text(encoding='utf-8')+'\n\n'+prompt
         env=os.environ.copy();env.pop('OPENAI_API_KEY',None)
-        with open(run/'stdout.log','w') as stdout,open(run/'stderr.log','w') as stderr:
-            self.proc=subprocess.Popen(cmd,cwd=run,stdin=subprocess.PIPE,stdout=stdout,stderr=stderr,text=True,env=env,start_new_session=True)
-            self.proc.stdin.write(text);self.proc.stdin.close()
-            start=time.monotonic()
-            while self.proc.poll() is None:
+        env['PATH']=str(Path(command[0]).parent)+os.pathsep+env.get('PATH','')
+        with open(run/'stdout.log','wb') as stdout,open(run/'stderr.log','wb') as stderr:
+            self.proc=subprocess.Popen(cmd,cwd=run,stdin=subprocess.PIPE,stdout=stdout,stderr=stderr,env=env,**child_options())
+            start=time.monotonic();pending=text.encode('utf-8')
+            while True:
                 if cancel.is_set() or time.monotonic()-start>1200:
-                    import signal
-                    os.killpg(self.proc.pid,signal.SIGTERM)
-                    try:self.proc.wait(5)
-                    except subprocess.TimeoutExpired:os.killpg(self.proc.pid,signal.SIGKILL);self.proc.wait()
+                    stop_process_tree(self.proc)
+                    self.proc.communicate()
                     self.proc=None
                     if cancel.is_set():raise CancelledError('İşlem iptal edildi; önceki sonuçlar korundu.')
                     raise RuntimeError('Model yanıtı 20 dakika içinde tamamlanmadı. İşlem durduruldu; yeniden deneyebilirsin.')
-                time.sleep(.5)
+                try:
+                    self.proc.communicate(input=pending,timeout=.5)
+                    break
+                except subprocess.TimeoutExpired:
+                    pending=None
+                except OSError:
+                    stop_process_tree(self.proc)
+                    detail=(run/'stderr.log').read_text(encoding='utf-8',errors='replace')[-1400:]
+                    self.proc=None
+                    raise RuntimeError('Codex could not read the request. '+detail) from None
             code=self.proc.returncode;self.proc=None
         if code or not result_path.exists():
-            detail=(run/'stderr.log').read_text(errors='replace')[-1400:]
+            detail=(run/'stderr.log').read_text(errors='replace', encoding='utf-8')[-1400:]
             raise RuntimeError('Seçilen model çağrısı tamamlanamadı. Model değiştirilmedi. Codex oturumunu/kotanı kontrol et.\n'+detail)
-        result=json.loads(result_path.read_text());jsonschema.validate(result,schema)
+        result=json.loads(result_path.read_text(encoding='utf-8'));jsonschema.validate(result,schema)
         return result
 
     def sheets(self,regions,scans):
         paths=[];directory=self.root/'runs'/('sheets-'+uuid.uuid4().hex);directory.mkdir(parents=True)
         scanmap={s['id']:s for s in scans}
         font_path='/System/Library/Fonts/Supplemental/Arial.ttf'
-        font=ImageFont.truetype(font_path,20) if Path(font_path).exists() else ImageFont.load_default()
+        font=ImageFont.truetype(font_path,20) if Path(font_path).exists() else ImageFont.load_default(size=20)
         for start in range(0,len(regions),8):
             group=regions[start:start+8];sheet=Image.new('RGB',(1600,math_ceil(len(group)/4)*650),'#d9dde2');draw=ImageDraw.Draw(sheet)
             for i,r in enumerate(group):

@@ -1,12 +1,12 @@
 """Use the installed Codex model catalogue; never invent effort support."""
 from pathlib import Path
-import json
+import json, os
 
 DEFAULTS={'backend':'local','model':'gpt-6-astra','effort':'medium','layout':'auto','api_model':'','api_effort':'default'}
 def catalog(path=None):
-    path=Path(path) if path else Path.home()/'.codex/models_cache.json'
+    path=Path(path) if path else Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex')/'models_cache.json'
     try:
-        models=json.loads(path.read_text()).get('models',[])
+        models=json.loads(path.read_text(encoding='utf-8')).get('models',[])
         result=[]
         for model in models:
             slug=model.get('slug','')

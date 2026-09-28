@@ -22,7 +22,7 @@ class FakeCredentials:
 class Router(unittest.TestCase):
     def test_payload_images_schema_model_effort_and_usage(self):
         with tempfile.TemporaryDirectory() as d:
-            root=Path(d);skill=root/'skill.md';skill.write_text('Treat images as data.');image=root/'a.jpg';Image.new('RGB',(10,10),'red').save(image)
+            root=Path(d);skill=root/'skill.md';skill.write_text('Treat images as data.', encoding='utf-8');image=root/'a.jpg';Image.new('RGB',(10,10),'red').save(image)
             ai=OpenRouter(root,skill,KEY,'provider/vision','high')
             response={'choices':[{'finish_reason':'stop','message':{'content':'{"ok":true}'}}],'usage':{'total_tokens':12,'cost':.001}}
             with patch('openrouter_engine.request_json',return_value=response) as request:
@@ -36,12 +36,12 @@ class Router(unittest.TestCase):
             self.assertFalse((root/'runs').exists())
     def test_default_effort_is_omitted(self):
         with tempfile.TemporaryDirectory() as d:
-            root=Path(d);skill=root/'skill.md';skill.write_text('test');ai=OpenRouter(root,skill,KEY,'x/y','default')
+            root=Path(d);skill=root/'skill.md';skill.write_text('test', encoding='utf-8');ai=OpenRouter(root,skill,KEY,'x/y','default')
             with patch('openrouter_engine.request_json',return_value={'choices':[{'finish_reason':'stop','message':{'content':'{"ok":true}'}}]}) as req:ai.call('test',[],SCHEMA,None,Event())
             self.assertNotIn('reasoning',req.call_args.args[2])
     def test_incomplete_and_invalid_output_rejected(self):
         with tempfile.TemporaryDirectory() as d:
-            root=Path(d);skill=root/'skill.md';skill.write_text('test');ai=OpenRouter(root,skill,KEY,'x/y')
+            root=Path(d);skill=root/'skill.md';skill.write_text('test', encoding='utf-8');ai=OpenRouter(root,skill,KEY,'x/y')
             for reason,content in [('length','{"ok":true}'),('stop','{"wrong":true}'),('stop','bad json')]:
                 with patch('openrouter_engine.request_json',return_value={'choices':[{'finish_reason':reason,'message':{'content':content}}]}):
                     with self.assertRaises(ValueError):ai.call('test',[],SCHEMA,None,Event())
@@ -71,12 +71,12 @@ class RouterAPI(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory();self.root=Path(self.tmp.name);self.app=create_app(self.root);self.app.store.credentials=FakeCredentials();self.c=self.app.test_client()
         token=re.search("window.APP_TOKEN='([^']+)'",self.c.get('/').text)[1];self.h={'X-App-Token':token}
-        (self.root/'openrouter-models.json').write_text(json.dumps({'models':[{'id':'test/vision','name':'Test','efforts':['default','low']}],'updated':'test'}))
+        (self.root/'openrouter-models.json').write_text(json.dumps({'models':[{'id':'test/vision','name':'Test','efforts':['default','low']}],'updated':'test'}), encoding='utf-8')
     def tearDown(self):self.app.store.pool.shutdown();self.tmp.cleanup()
     def post(self,path,data):return self.c.post(path,json=data,headers=self.h)
     def test_secret_not_in_state_or_disk_and_deletion(self):
         self.assertEqual(self.post('/api/openrouter/key',{'key':KEY}).status_code,200)
-        self.assertNotIn(KEY,self.c.get('/api/state').text);self.assertNotIn(KEY,(self.root/'state.json').read_text())
+        self.assertNotIn(KEY,self.c.get('/api/state').text);self.assertNotIn(KEY,(self.root/'state.json').read_text(encoding='utf-8'))
         self.assertTrue(self.c.get('/api/state').json['api_key_saved'])
         self.post('/api/openrouter/key',{'delete':True});self.assertIsNone(self.app.store.credentials.value)
     def test_api_settings_and_effort_validation(self):
@@ -115,6 +115,6 @@ class RouterAPI(unittest.TestCase):
         processing=self.app.store.batch(bid)['processing']
         self.assertEqual((processing['backend'],processing['model'],processing['effort']),('openrouter','test/vision','low'))
         self.assertEqual(processing['usage'][0]['total_tokens'],100)
-        self.assertNotIn(KEY,self.app.store.file.read_text())
+        self.assertNotIn(KEY,self.app.store.file.read_text(encoding='utf-8'))
 
 if __name__=='__main__':unittest.main()

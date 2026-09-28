@@ -1,6 +1,6 @@
 """Deterministic, source-preserving scan ingestion and geometry."""
 from pathlib import Path
-import hashlib, io, math, re, subprocess, unicodedata
+import hashlib, io, math, re, subprocess, unicodedata, sys
 import numpy as np
 import cv2
 import pymupdf as fitz
@@ -8,6 +8,8 @@ from PIL import Image, ImageOps
 
 Image.MAX_IMAGE_PIXELS = 140_000_000
 SUPPORTED = {'.jpg','.jpeg','.png','.tif','.tiff','.heic','.heif','.pdf'}
+
+def heic_supported():return sys.platform == 'darwin'
 
 def slug(value):
     value = value.translate(str.maketrans('ıİşŞğĞüÜöÖçÇ','iIsSgGuUoOcC'))
@@ -37,10 +39,13 @@ def raster_pages(path):
                     pix=page.get_pixmap(matrix=fitz.Matrix(zoom,zoom),colorspace=fitz.csRGB,alpha=False)
                     yield Image.frombytes('RGB',(pix.width,pix.height),pix.samples),round(zoom*72),'PDF sayfa görüntüsü'
     elif path.suffix.lower() in {'.heic','.heif'}:
+        if not heic_supported():raise ValueError('HEIC yalnız macOS üzerinde destekleniyor. Dosyayı JPEG olarak yükle.')
         target=path.with_name(path.stem+'-decode.png')
         subprocess.run(['sips','-s','format','png',str(path),'--out',str(target)],check=True,stdout=subprocess.DEVNULL,timeout=60)
-        yield ImageOps.exif_transpose(Image.open(target)).convert('RGB'),600,'HEIC'
-        target.unlink(missing_ok=True)
+        try:
+            with Image.open(target) as source:decoded=ImageOps.exif_transpose(source).convert('RGB')
+            yield decoded,600,'HEIC'
+        finally:target.unlink(missing_ok=True)
     else:
         with Image.open(path) as im:
             count=getattr(im,'n_frames',1)

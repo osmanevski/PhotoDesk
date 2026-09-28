@@ -1,5 +1,5 @@
 """OpenRouter vision + strict structured output, sharing the existing scan workflow."""
-import base64,http.client,json,ssl,time,threading
+import base64,http.client,json,ssl,time,threading,sys
 from pathlib import Path
 from concurrent.futures import CancelledError
 import jsonschema
@@ -10,7 +10,7 @@ GATEWAY_EFFORTS=['none','minimal','low','medium','high','xhigh','max']
 def request_json(path,key=None,payload=None,cancel=None):
     if path not in ['/api/v1/models','/api/v1/key','/api/v1/chat/completions']:raise ValueError('Geçersiz OpenRouter yolu.')
     if cancel is not None and cancel.is_set():raise CancelledError()
-    conn=http.client.HTTPSConnection('openrouter.ai',timeout=180,context=ssl.create_default_context(cafile='/etc/ssl/cert.pem' if Path('/etc/ssl/cert.pem').exists() else None))
+    conn=http.client.HTTPSConnection('openrouter.ai',timeout=180,context=ssl.create_default_context(cafile='/etc/ssl/cert.pem' if sys.platform=='darwin' and Path('/etc/ssl/cert.pem').exists() else None))
     result={};done=threading.Event()
     def run():
         try:
@@ -52,14 +52,14 @@ def parse_models(data):
     return sorted(result,key=lambda x:x['name'].lower())
 
 def read_models(root):
-    try:return json.loads((Path(root)/'openrouter-models.json').read_text())
+    try:return json.loads((Path(root)/'openrouter-models.json').read_text(encoding='utf-8'))
     except (OSError,ValueError):return {'models':[],'updated':None}
 
 def refresh_models(root):
     models=parse_models(request_json('/api/v1/models'))
     if not models:raise ValueError('Görsel ve yapılandırılmış JSON destekli model bulunamadı. Eski liste korundu.')
     value={'models':models,'updated':time.strftime('%Y-%m-%dT%H:%M:%S')}
-    path=Path(root)/'openrouter-models.json';tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(value,ensure_ascii=False));tmp.replace(path)
+    path=Path(root)/'openrouter-models.json';tmp=path.with_suffix('.tmp');tmp.write_text(json.dumps(value,ensure_ascii=False), encoding='utf-8');tmp.replace(path)
     return value
 
 class OpenRouter(Astra):
@@ -70,7 +70,7 @@ class OpenRouter(Astra):
         for image in images:
             data=base64.b64encode(Path(image).read_bytes()).decode()
             content.append({'type':'image_url','image_url':{'url':'data:image/jpeg;base64,'+data}})
-        payload={'model':self.model,'messages':[{'role':'system','content':self.skill.read_text()},{'role':'user','content':content}],
+        payload={'model':self.model,'messages':[{'role':'system','content':self.skill.read_text(encoding='utf-8')},{'role':'user','content':content}],
                  'response_format':{'type':'json_schema','json_schema':{'name':'photo_archive','strict':True,'schema':schema}},
                  'provider':{'require_parameters':True},'stream':False}
         if self.effort!='default':payload['reasoning']={'effort':self.effort,'exclude':True}

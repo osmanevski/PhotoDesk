@@ -102,5 +102,11 @@
   "Arka bölgede belirgin yazı bulunmadı; boş adayını kontrol et. Boş arka çıktıya eklenmez.": "No clear writing detected on the back; review the blank candidate. Blank backs are omitted from export.",
   "Aynı konumdaki arka alan yazısız görünüyor. Boş olduğunu onayla; çıktıya eklenmeyecek.": "The back at this position appears blank. Confirm it is blank; it will not be exported.",
   "Arka taraması var ancak kâğıt/eşleşme belirsiz; elle kontrol et.": "A back scan exists but the paper boundary or match is uncertain; review manually.",
-  "Anahtar silinemedi (": "Could not delete key ("
+  "Anahtar silinemedi (": "Could not delete key (",
+  "HEIC yalnız macOS üzerinde destekleniyor. Dosyayı JPEG olarak yükle.": "HEIC is supported on macOS only. Upload a JPEG instead.",
+  "OpenRouter anahtarı için secret-tool ve açık bir Secret Service kasası gerekir. Yerel ve Codex modları kullanılabilir.": "Saving an OpenRouter key requires secret-tool and an unlocked Secret Service store. Local and Codex modes remain available.",
+  "Güvenli anahtar kasasına erişilemedi. Kasayı açıp yeniden dene.": "Could not access the secure credential store. Unlock it and try again.",
+  "Klasör açılamadı. Dosya yöneticisini kur veya çıktı yolunu elle aç.": "Could not open the folder. Install a file manager or open the export path manually.",
+  "Codex npm başlatıcısı çözülemedi. Node.js ve Codex CLI kurulumunu kontrol et veya PHOTODESK_CODEX ile codex.exe yolunu belirt.": "Could not resolve the npm Codex launcher. Check Node.js and Codex CLI, or set PHOTODESK_CODEX to codex.exe.",
+  "Windows için yerel codex.exe veya npm codex.cmd gerekir; WSL kurulumu kullanılamaz.": "Windows requires native codex.exe or npm codex.cmd; a WSL installation cannot be used."
 }

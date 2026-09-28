@@ -4,7 +4,7 @@ import json
 import re
 
 ROOT = Path(__file__).resolve().parent
-MESSAGES = json.loads((ROOT / 'locales/server.en.json').read_text())
+MESSAGES = json.loads((ROOT / 'locales/server.en.json').read_text(encoding='utf-8'))
 PATTERN = re.compile('|'.join(re.escape(k) for k in sorted(MESSAGES, key=len, reverse=True)))
 
 def translate(message, language='en'):

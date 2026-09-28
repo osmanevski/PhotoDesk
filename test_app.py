@@ -106,7 +106,7 @@ class API(unittest.TestCase):
         r=self.post('/api/settings',{'backend':'ai','model':'gpt-6-luna','effort':'low','layout':'2x2'})
         self.assertEqual(r.status_code,200,r.json)
         self.assertEqual(self.c.get('/api/state').json['settings']['model'],'gpt-6-luna')
-        self.assertEqual(json.loads(self.app.store.file.read_text())['settings']['effort'],'low')
+        self.assertEqual(json.loads(self.app.store.file.read_text(encoding='utf-8'))['settings']['effort'],'low')
         self.assertEqual(self.post('/api/settings',{'backend':'ai','model':'gpt-6-luna','effort':'ultra'}).status_code,400)
         self.assertEqual(self.post('/api/settings',{'backend':'ai','model':'not-a-model'}).status_code,400)
 
@@ -154,17 +154,17 @@ class Offline(unittest.TestCase):
             self.assertEqual(plan['pairs'][0]['back_status'],'not_provided')
     def test_catalog_reads_supported_efforts_not_fixed_list(self):
         with tempfile.TemporaryDirectory() as d:
-            p=Path(d)/'models.json';p.write_text(json.dumps({'models':[{'slug':'gpt-test','display_name':'Test','input_modalities':['image'],'supported_reasoning_levels':[{'effort':'low'},{'effort':'high'}]}]}))
+            p=Path(d)/'models.json';p.write_text(json.dumps({'models':[{'slug':'gpt-test','display_name':'Test','input_modalities':['image'],'supported_reasoning_levels':[{'effort':'low'},{'effort':'high'}]}]}), encoding='utf-8')
             self.assertEqual(catalog(p)[0]['efforts'],['low','high'])
     def test_selected_model_and_effort_reach_cli(self):
         from engine import Astra
         with tempfile.TemporaryDirectory() as d:
-            root=Path(d);skill=root/'skill.md';skill.write_text('Return JSON')
+            root=Path(d);skill=root/'skill.md';skill.write_text('Return JSON', encoding='utf-8')
             captured=[]
             def fake_popen(cmd,**kwargs):
                 captured.extend(cmd);raise RuntimeError('stop-before-network')
             ai=Astra(root,skill,model='gpt-6-luna',effort='low')
-            with patch('subprocess.Popen',side_effect=fake_popen),patch('engine.shutil.which',return_value=sys.executable):
+            with patch('subprocess.Popen',side_effect=fake_popen),patch('engine.codex_command',return_value=[sys.executable]):
                 with self.assertRaisesRegex(RuntimeError,'stop-before-network'):ai.call('test',[],{},None,Event())
             self.assertEqual(captured[captured.index('--model')+1],'gpt-6-luna')
             self.assertIn('model_reasoning_effort="low"',captured)
