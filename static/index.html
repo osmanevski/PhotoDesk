@@ -1,9 +1,69 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PhotoDesk</title><link rel="icon" type="image/png" sizes="32x32" href="/static/favicon.png?v=5477dbec5f4f"><link rel="icon" href="/static/icon.svg?v=bc26f6a3834f" type="image/svg+xml"><link rel="stylesheet" href="/static/style.css"><script nonce="__TOKEN__">window.APP_TOKEN='__TOKEN__';window.APP_LANGUAGE='__LANG__';</script><script src="__SCRIPT__" defer></script></head><body>
-<header class="topbar"><a class="brand" href="/"><img class="app-icon" src="/static/icon.svg?v=bc26f6a3834f" alt=""><span>PhotoDesk<small>FROM SCAN TO ARCHIVE</small></span></a><div class="top-middle" id="modelState"><span class="dot"></span>Astra <b>medium</b></div><select id="languageSelect" class="language-select" aria-label="Language / Dil"><option value="en">English</option><option value="tr">Türkçe</option></select><button id="newBatch" class="button quiet">＋ New batch</button><button id="exportTop" class="button primary" disabled>Save JPEGs <span>↗</span></button></header>
-<section id="processingSettings" class="settings-strip" aria-label="Processing settings"></section>
-<div id="jobbar" class="jobbar" hidden><span class="spinner"></span><span id="jobtext"></span><button id="cancelJob" class="button small">Cancel</button></div>
-<main id="app"></main><input id="fileInput" type="file" accept=".jpeg,.jpg,.png,.pdf,.tif,.tiff,.heic,.heif" multiple hidden>
-<div id="toast" role="status" aria-live="polite"></div>
-<dialog id="exportDialog"><form method="dialog"><button class="close" aria-label="Close">×</button></form><p class="eyebrow">SAVE TO ARCHIVE</p><h2>Give your photographs a home.</h2><p id="exportCount" class="muted"></p><label>Output folder<input id="exportDir" type="text" spellcheck="false"></label><p class="help">Each export creates a new folder. Previous exports and original scans are preserved.</p><div id="exportResult"></div><button id="doExport" class="button primary full">Save approved photos</button></dialog>
-<dialog id="newDialog"><form id="newForm"><button type="button" class="close" id="closeNew" aria-label="Close">×</button><p class="eyebrow">NEW SCAN BATCH</p><h2>Start a new batch.</h2><label>Batch name<input id="batchName" required placeholder="e.g. Family photographs, 1976" maxlength="150"></label><button class="button primary full" type="submit">Create batch</button></form></dialog>
-<dialog id="apiDialog"><button class="close" id="closeApi" aria-label="Close">×</button><p class="eyebrow">OPENROUTER CONNECTION</p><h2>Connect your API key.</h2><p class="help">Your key is stored only in this computer’s secure credential store. AI analysis sends photos through OpenRouter to your chosen model provider; usage is billed to your OpenRouter account.</p><label>API key<input id="apiKey" type="password" autocomplete="new-password" placeholder="sk-or-…" spellcheck="false"></label><p id="apiStatus" role="status" class="help"></p><div class="save-row"><button id="saveApiKey" class="button primary">Save key</button><button id="testApiKey" class="button">Test connection</button></div><button id="deleteApiKey" class="button small danger full">Delete saved key</button><p class="help">The connection test only validates the key; it sends no photos and makes no model call. Cancelling may not reverse charges for a request already sent.</p></dialog></body></html>
+<!doctype html>
+<html lang="{{lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PhotoDesk</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon.png?v={{v:favicon.png}}">
+<link rel="icon" type="image/svg+xml" href="/static/icon.svg?v={{v:icon.svg}}">
+<link rel="stylesheet" href="/static/style.css?v={{v:style.css}}">
+<script type="application/json" id="strings">{{strings}}</script>
+<script nonce="{{token}}">window.APP_TOKEN='{{token}}';window.APP_LANGUAGE='{{lang}}';</script>
+<script src="/static/app.js?v={{v:app.js}}" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/"><img src="/static/icon.svg?v={{v:icon.svg}}" alt=""><span>PhotoDesk</span></a>
+  <div class="batch-switch" id="batchSwitch"></div>
+  <div class="top-status" id="modelState"></div>
+  <select id="languageSelect" class="lang" aria-label="Language / Dil"><option value="en">EN</option><option value="tr">TR</option></select>
+  <button id="exportTop" class="btn primary" disabled>{{t:export.open}}</button>
+</header>
+<div id="jobbar" class="jobbar" hidden role="status" aria-live="polite">
+  <span class="spinner" aria-hidden="true"></span><span id="jobtext"></span>
+  <div class="progress" id="jobprogress" hidden><i></i></div>
+  <button id="cancelJob" class="btn small">{{t:job.cancel}}</button>
+  <button id="dismissJob" class="icon-btn" aria-label="{{t:common.close}}">×</button>
+</div>
+<main id="app" class="app"></main>
+<input id="fileInput" type="file" accept=".jpeg,.jpg,.png,.pdf,.tif,.tiff,.heic,.heif" multiple hidden>
+<div id="dropOverlay" class="drop-overlay" hidden><div><b>{{t:drop.overlay}}</b><span>{{t:drop.formats}}</span></div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<dialog id="newDialog" aria-labelledby="newTitle">
+  <form id="newForm">
+    <button type="button" class="icon-btn close" data-close aria-label="{{t:common.close}}">×</button>
+    <h2 id="newTitle">{{t:batch.newTitle}}</h2>
+    <p class="help">{{t:batch.newHelp}}</p>
+    <label>{{t:batch.name}}<input id="batchName" required maxlength="150" placeholder="{{t:batch.namePlaceholder}}"></label>
+    <div class="dialog-actions"><button type="button" class="btn" data-close>{{t:common.cancel}}</button><button class="btn primary" type="submit">{{t:batch.create}}</button></div>
+  </form>
+</dialog>
+
+<dialog id="exportDialog" aria-labelledby="exportTitle">
+  <button type="button" class="icon-btn close" data-close aria-label="{{t:common.close}}">×</button>
+  <h2 id="exportTitle">{{t:export.title}}</h2>
+  <p id="exportCount" class="help"></p>
+  <label>{{t:export.folder}}<input id="exportDir" type="text" spellcheck="false"></label>
+  <p class="help">{{t:export.folderHelp}}</p>
+  <div id="exportResult" aria-live="polite"></div>
+  <div class="dialog-actions"><button type="button" class="btn" data-close>{{t:common.close}}</button><button id="doExport" class="btn primary">{{t:export.run}}</button></div>
+</dialog>
+
+<dialog id="apiDialog" aria-labelledby="apiTitle">
+  <button type="button" class="icon-btn close" data-close aria-label="{{t:common.close}}">×</button>
+  <h2 id="apiTitle">{{t:api.title}}</h2>
+  <p class="help">{{t:api.help}}</p>
+  <label>{{t:api.key}}<input id="apiKey" type="password" autocomplete="new-password" placeholder="sk-or-…" spellcheck="false"></label>
+  <p id="apiStatus" role="status" class="help"></p>
+  <div class="dialog-actions"><button id="deleteApiKey" class="btn danger-text">{{t:api.delete}}</button><span class="grow"></span><button id="testApiKey" class="btn">{{t:api.test}}</button><button id="saveApiKey" class="btn primary">{{t:api.save}}</button></div>
+  <p class="help small">{{t:api.testHelp}}</p>
+</dialog>
+
+<dialog id="confirmDialog" aria-labelledby="confirmTitle">
+  <h2 id="confirmTitle"></h2>
+  <p id="confirmText" class="help"></p>
+  <div class="dialog-actions" id="confirmActions"></div>
+</dialog>
+</body>
+</html>

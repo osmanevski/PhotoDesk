@@ -10,7 +10,7 @@ from PIL import Image,ImageDraw
 from playwright.sync_api import sync_playwright,expect
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--url',default='http://127.0.0.1:8875');parser.add_argument('--screenshot');args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--url',default='http://127.0.0.1:8875');parser.add_argument('--screenshot');parser.add_argument('--channel',help='e.g. chrome to use the installed browser');args=parser.parse_args()
     with tempfile.TemporaryDirectory() as temporary, sync_playwright() as p:
         root=Path(temporary)
         front=Image.new('RGB',(800,1000),'white');back=front.copy()
@@ -24,28 +24,42 @@ def main():
             if index!=1:
                 for line in range(5):b.line((x+35,y+70+line*45,x+260-line*12,y+70+line*45),fill='#536779',width=4)
         front.save(root/'1a.png');back.save(root/'1b.png')
-        browser=p.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1500,'height':1000},device_scale_factor=1)
+        browser=p.chromium.launch(headless=True,channel=args.channel);page=browser.new_page(viewport={'width':1500,'height':1000},device_scale_factor=1)
         errors=[];page.on('pageerror',lambda error:errors.append(str(error)))
         page.goto(args.url);page.wait_for_load_state('networkidle')
         expect(page.locator('html')).to_have_attribute('lang','en')
-        page.locator('#newBatch').click();page.locator('#batchName').fill('Sample archive');page.locator('#newForm button[type=submit]').click()
+        # First drop creates a batch automatically.
         page.locator('#fileInput').set_input_files([str(root/'1a.png'),str(root/'1b.png')])
-        expect(page.locator('.scan-item')).to_have_count(2)
+        expect(page.locator('.scan')).to_have_count(2)
         page.locator('#layoutSelect').select_option('2x2')
         page.locator('[data-action=analyze]').click()
-        expect(page.locator('.photo-card')).to_have_count(4,timeout=20000)
+        expect(page.locator('.card')).to_have_count(4,timeout=20000)
         expect(page.locator('#jobtext')).to_contain_text('photos ready')
-        for card in page.locator('.photo-card').all():
-            card.click();page.locator('[data-action=approve-pair]').click();expect(page.locator('.inspector>.chip')).to_have_text('Approved')
+        # Every preview must actually load.
+        page.wait_for_function("[...document.querySelectorAll('.card img')].every(i=>i.complete&&i.naturalWidth>0)",timeout=20000)
+        # Approve moves to the next photo waiting for review; keyboard A works too.
+        page.locator('.card').first.click();page.locator('[data-action=approve]').click()
+        expect(page.locator('.card.active .num')).to_have_text('002')
+        for _ in range(3):page.keyboard.press('a');page.wait_for_timeout(400)
+        expect(page.locator('[data-filter=approved] span')).to_have_text('4')
+        # Corner edit stays a draft until saved, then sends the photo back to review.
+        page.locator('[data-view=scans]').click();expect(page.locator('.corner')).to_have_count(4)
+        page.locator('.corner').first.hover();corner=page.locator('.corner').first.bounding_box()
+        page.mouse.move(corner['x']+corner['width']/2,corner['y']+corner['height']/2);page.mouse.down()
+        page.mouse.move(corner['x']+30,corner['y']+25,steps=4);page.mouse.up()
+        expect(page.locator('.draft-bar')).to_be_visible();expect(page.locator('#exportTop')).to_be_disabled()
+        page.locator('.draft-bar [data-action=save-draft]').click();expect(page.locator('.draft-bar')).to_have_count(0)
+        page.locator('[data-view=photos]').click();expect(page.locator('[data-filter=review] span')).to_have_text('1')
+        page.locator('[data-filter=review]').click();page.locator('.card').first.click();page.locator('[data-action=approve]').click()
         # Switching language reloads the UI but must preserve the working plan.
         page.locator('#languageSelect').select_option('tr');page.wait_for_load_state('networkidle')
         expect(page.locator('html')).to_have_attribute('lang','tr')
         expect(page.locator('#newBatch')).to_contain_text('Yeni iş')
-        page.locator('[data-tab=results]').click();expect(page.locator('.photo-card')).to_have_count(4)
+        expect(page.locator('.card')).to_have_count(4)
         page.locator('#languageSelect').select_option('en');page.wait_for_load_state('networkidle')
-        page.locator('[data-tab=results]').click();expect(page.locator('.photo-card')).to_have_count(4)
+        expect(page.locator('.card')).to_have_count(4)
         page.locator('#exportTop').click();page.locator('#exportDir').fill(str(root/'export'))
-        page.locator('#doExport').click();expect(page.locator('.result-success')).to_contain_text('4 JPEGs saved.',timeout=20000)
+        page.locator('#doExport').click();expect(page.locator('#exportResult .success')).to_contain_text('4 JPEGs saved.',timeout=20000)
         assert len(list((root/'export').rglob('*.jpg')))==4
         page.locator('#exportDialog .close').click()
         if args.screenshot:
@@ -54,6 +68,6 @@ def main():
         page.set_viewport_size({'width':390,'height':844});page.wait_for_timeout(100)
         assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),'Mobile horizontal overflow'
         assert not errors,errors
-        browser.close();print('PASS: EN/TR persistence, 4-photo local processing, approval, JPEG export, responsive layout; no JS errors.')
+        browser.close();print('PASS: auto batch, 4-photo local processing, approve-and-next, corner draft, EN/TR persistence, JPEG export, responsive layout; no JS errors.')
 
 if __name__=='__main__':main()

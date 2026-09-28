@@ -1,12 +1,12 @@
 import json
 import re
+from pathlib import Path
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 from app import create_app
 from localization import localize_response
-from scripts.build_locales import build
 
 class Localization(unittest.TestCase):
     def setUp(self):
@@ -16,11 +16,15 @@ class Localization(unittest.TestCase):
         self.app.store.pool.shutdown(wait=True);self.tmp.cleanup()
     def test_english_default_and_turkish_cookie(self):
         response=self.c.get('/');self.assertIn('lang="en"',response.text)
-        self.assertIn('New batch',response.text);self.assertIn('/static/app.js',response.text)
+        self.assertIn('Save JPEGs',response.text);self.assertIn('/static/app.js',response.text)
+        self.assertNotIn('{{',response.text)
+        strings=json.loads(re.search(r'<script type="application/json" id="strings">(.*?)</script>',response.text,re.S)[1])
+        self.assertEqual(strings['batch.new'],'+ New batch')
         self.assertEqual(self.c.get('/api/state').json['job']['message'],'Ready')
         self.c.set_cookie('photo-desk-language','tr')
         response=self.c.get('/');self.assertIn('lang="tr"',response.text)
-        self.assertIn('Yeni iş',response.text);self.assertIn('/static/app.tr.js',response.text)
+        self.assertIn('JPEG kaydet',response.text);self.assertIn('/static/app.js',response.text)
+        self.assertIn('"batch.new": "+ Yeni iş"',response.text)
         self.assertEqual(self.c.get('/api/state').json['job']['message'],'Hazır')
     def test_errors_localized_but_saved_user_data_untouched(self):
         self.assertIn('reload',self.c.post('/api/batches',json={}).json['error'])
@@ -42,6 +46,20 @@ class Localization(unittest.TestCase):
         self.assertIn('in English',analyze.call_args.args[1])
         self.assertEqual(batch['instruction'],'Notumu koru')
         self.assertEqual(batch['name'],'Özel ad')
-    def test_generated_assets_are_current(self):build(check=True)
+    def test_ui_strings_complete(self):
+        static=Path(__file__).resolve().parent/'static'
+        strings=json.loads((static/'strings.json').read_text(encoding='utf-8'))
+        self.assertEqual(set(strings['en']),set(strings['tr']))
+        used=set(re.findall(r"\bt\('([\w.]+)'",(static/'app.js').read_text(encoding='utf-8')))
+        used|=set(re.findall(r'\{\{t:([\w.]+)\}\}',(static/'index.html').read_text(encoding='utf-8')))
+        self.assertEqual(used-set(strings['en']),set())
+        for language in strings.values():
+            for value in language.values():
+                for text in ([value] if isinstance(value,str) else value.values()):
+                    self.assertNotIn('</script',text.lower())
+    def test_previews_cacheable_only_when_versioned(self):
+        with self.c.get('/static/style.css?v=1') as r:self.assertEqual(r.headers['Cache-Control'],'private, max-age=31536000, immutable')
+        with self.c.get('/static/style.css') as r:self.assertEqual(r.headers['Cache-Control'],'no-store')
+        self.assertEqual(self.c.get('/api/state').headers['Cache-Control'],'no-store')
 
 if __name__=='__main__':unittest.main()

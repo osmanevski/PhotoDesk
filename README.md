@@ -118,12 +118,10 @@ python app.py --data /tmp/photodesk-dev --port 8875
 
 Tests use synthetic images and mocked model calls; they do not require a paid API key. CI runs on macOS, Ubuntu and Windows with Python 3.12, plus Windows/Python 3.11. Tests cover JPEG processing/export, UTF-8, credential-unavailable startup, upload cleanup, server locks, and process-tree termination. A Windows-only credential test creates and removes an isolated synthetic entry; it never accesses a personal key. Linux Secret Service and macOS keychain operations are mocked, so desktop unlock dialogs still need manual validation. Live paid OpenRouter photo analysis is not part of the test suite.
 
-UI logic and Turkish copy are maintained in `locales/tr/`; `locales/en.json` contains the English catalog. The build translates source literals, never user data in the live DOM. Rebuild generated assets after changing either source:
+The interface is plain JavaScript with no build step: `static/app.js`, `static/style.css` and `static/index.html`. Every interface string lives once in `static/strings.json` under `en` and `tr`; the server embeds the selected language into the page, and user data is never translated. The test suite fails if a key is missing from either language. After changing the icon:
 
 ```sh
 python scripts/build_icon.py
-python scripts/build_locales.py
-python scripts/build_locales.py --check
 ```
 
 `static/icon.svg` is the vector mark; `build_icon.py` renders matching PNG and ICNS assets. `locales/server.en.json` covers application status/errors. AI output follows the language selected when the job starts; older notes are not retroactively translated.

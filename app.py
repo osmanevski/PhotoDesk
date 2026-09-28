@@ -1,7 +1,7 @@
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, CancelledError
 from threading import RLock, Event
-import argparse, copy, hashlib, io, json, os, re, secrets, shutil, subprocess, time, uuid, zipfile
+import argparse, copy, hashlib, html, io, json, os, re, secrets, shutil, subprocess, time, uuid, zipfile
 from flask import Flask, request, jsonify, send_file, Response
 from PIL import Image, ImageDraw
 from engine import Astra, MODEL, EFFORT, validate_plan, validate_groups
@@ -15,6 +15,21 @@ from localization import translate,localize_response
 from imaging import heic_supported, SUPPORTED, raster_pages, render_pair, slug, validate_corners
 
 HERE=Path(__file__).resolve().parent
+STRINGS=json.loads((HERE/'static'/'strings.json').read_text(encoding='utf-8'))
+# Long-lived caching is safe only for URLs whose ?v= changes with their content.
+IMMUTABLE={'static','preview','scan_image'}
+def asset_version(name):return hashlib.sha256((HERE/'static'/name).read_bytes()).hexdigest()[:12]
+def page(language,token):
+    strings=STRINGS[language]
+    def fill(match):
+        key=match[1]
+        if key=='lang':return language
+        if key=='token':return token
+        if key=='strings':return json.dumps(strings,ensure_ascii=False).replace('<','\\u003c')
+        if key.startswith('v:'):return asset_version(key[2:])
+        value=strings[key[2:]]
+        return html.escape(value if isinstance(value,str) else value['other'])
+    return re.sub(r'\{\{([^}]+)\}\}',fill,(HERE/'static'/'index.html').read_text(encoding='utf-8'))
 def now():return time.strftime('%Y-%m-%dT%H:%M:%S')
 def uid():return uuid.uuid4().hex[:12]
 def atomic(path,value):
@@ -56,7 +71,9 @@ def create_app(root, credentials=None):
         resp.headers['Content-Language']=language()
         if resp.is_json:
             resp.set_data(app.json.dumps(localize_response(resp.get_json(),language())))
-        resp.headers['X-Content-Type-Options']='nosniff';resp.headers['Cache-Control']='no-store'
+        resp.headers['X-Content-Type-Options']='nosniff'
+        cacheable=request.endpoint in IMMUTABLE and request.args.get('v') and resp.status_code==200
+        resp.headers['Cache-Control']='private, max-age=31536000, immutable' if cacheable else 'no-store'
         resp.headers['Content-Security-Policy']="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'nonce-"+token+"'; connect-src 'self'; frame-ancestors 'none'"
         return resp
     @app.errorhandler(Exception)
@@ -65,9 +82,7 @@ def create_app(root, credentials=None):
         return jsonify(error=str(e)),code if isinstance(code,int) else 400
     @app.get('/')
     def index():
-        lang=language();name='index.tr.html' if lang=='tr' else 'index.html'
-        html=(HERE/'static'/name).read_text(encoding='utf-8').replace('__TOKEN__',token).replace('__LANG__',lang).replace('__SCRIPT__','/static/app.tr.js' if lang=='tr' else '/static/app.js')
-        return Response(html,mimetype='text/html')
+        return Response(page(language(),token),mimetype='text/html')
     @app.get('/api/state')
     def state():
         with store.lock:
